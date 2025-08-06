@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../controllers/auth_controller.dart';
 import '../models/user_model.dart';
 import '../services/navigation_service.dart';
+import 'profile_avatar.dart';
 
 class SlideOutMenu extends ConsumerWidget {
   final VoidCallback onLogout;
@@ -53,7 +54,7 @@ class SlideOutMenu extends ConsumerWidget {
                       Icons.person,
                       "Profile",
                       "Account details",
-                      () => _safeNavigate(context, () => NavigationService.showComingSoon(context, "Profile")),
+                      () => _safeNavigate(context, () => NavigationService.navigateToRoute(context, "/profile")),
                       Colors.grey.shade700,
                     ),
                     
@@ -117,28 +118,23 @@ class SlideOutMenu extends ConsumerWidget {
 
   Widget _buildDrawerHeader(User user) {
     Color roleColor;
-    IconData roleIcon;
     String roleTitle;
 
     switch (user.role) {
       case 'admin':
         roleColor = Colors.red.shade700;
-        roleIcon = Icons.admin_panel_settings;
         roleTitle = "Administrator";
         break;
       case 'supervisor':
         roleColor = Colors.green.shade700;
-        roleIcon = Icons.supervisor_account;
         roleTitle = "Supervisor";
         break;
       case 'student':
         roleColor = Colors.blue.shade700;
-        roleIcon = Icons.school;
         roleTitle = "Student";
         break;
       default:
         roleColor = Colors.grey.shade700;
-        roleIcon = Icons.person;
         roleTitle = "User";
     }
 
@@ -147,7 +143,7 @@ class SlideOutMenu extends ConsumerWidget {
       padding: const EdgeInsets.fromLTRB(16, 50, 16, 16),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [roleColor, roleColor.withOpacity(0.8)],
+          colors: [roleColor, roleColor.withValues(alpha: 0.8)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -155,10 +151,11 @@ class SlideOutMenu extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          CircleAvatar(
+          ProfileAvatar(
+            user: user,
             radius: 30,
-            backgroundColor: Colors.white,
-            child: Icon(roleIcon, size: 32, color: roleColor),
+            borderColor: Colors.white,
+            borderWidth: 2,
           ),
           const SizedBox(height: 12),
           Text(

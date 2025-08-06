@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../models/user_model.dart';
 import '../controllers/auth_controller.dart';
 import 'admin/admin_home_screen.dart';
 import 'supervisor/supervisor_home_screen.dart';

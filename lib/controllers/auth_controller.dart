@@ -225,7 +225,8 @@ class AuthController extends StateNotifier<AsyncValue<User?>> {
     try {
       await const FlutterSecureStorage().delete(key: 'token');
       await const FlutterSecureStorage().delete(key: 'refresh_token');
-      if (kDebugMode) print('[AUTH_CONTROLLER] Tokens cleared successfully');
+      await const FlutterSecureStorage().delete(key: 'user_id');
+      if (kDebugMode) print('[AUTH_CONTROLLER] Tokens and user_id cleared successfully');
     } catch (e) {
       if (kDebugMode) print('[AUTH_CONTROLLER] Error clearing tokens: $e');
     }

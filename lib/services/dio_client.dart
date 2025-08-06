@@ -100,6 +100,7 @@ class DioClient {
     if (kDebugMode) print('[DIO_CLIENT] Clearing tokens...');
     await _storage.delete(key: 'token');
     await _storage.delete(key: 'refresh_token');
+    await _storage.delete(key: 'user_id');
   }
 }
 

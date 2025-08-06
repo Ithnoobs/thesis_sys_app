@@ -75,6 +75,12 @@ class AuthServiceImpl implements AuthService {
 
         final user = User.fromJson(userJson);
         _currentUser = user;
+        
+        // Store user_id for profile operations
+        if (user.id != null) {
+          await _storage.write(key: 'user_id', value: user.id.toString());
+          if (kDebugMode) print('[LOGIN] User ID stored: ${user.id}');
+        }
 
         if (kDebugMode) {
           print('[LOGIN] User object created: ${user.name} (${user.email})');
@@ -167,6 +173,13 @@ class AuthServiceImpl implements AuthService {
         if (kDebugMode) print('[REGISTER] Writing tokens to secure storage...');
         await _storage.write(key: 'token', value: token);
         await _storage.write(key: 'refresh_token', value: refreshToken);
+        
+        // Store user_id for profile operations
+        if (user.id != null) {
+          await _storage.write(key: 'user_id', value: user.id.toString());
+          if (kDebugMode) print('[REGISTER] User ID stored: ${user.id}');
+        }
+        
         if (kDebugMode) print('[REGISTER] Tokens stored successfully');
 
         if (kDebugMode) {
@@ -269,9 +282,10 @@ class AuthServiceImpl implements AuthService {
       
       await _storage.delete(key: 'token');
       await _storage.delete(key: 'refresh_token');
+      await _storage.delete(key: 'user_id');
       _currentUser = null;
 
-      if (kDebugMode) print('[LOGOUT] Local cleanup completed - tokens cleared and user set to null');
+      if (kDebugMode) print('[LOGOUT] Local cleanup completed - tokens and user_id cleared, user set to null');
     }
   }
 
@@ -491,8 +505,9 @@ class AuthServiceImpl implements AuthService {
     if (kDebugMode) print('[CLEAR_TOKENS] Clearing stored tokens...');
     await _storage.delete(key: 'token');
     await _storage.delete(key: 'refresh_token');
+    await _storage.delete(key: 'user_id');
     _currentUser = null;
-    if (kDebugMode) print('[CLEAR_TOKENS] Tokens cleared');
+    if (kDebugMode) print('[CLEAR_TOKENS] Tokens and user_id cleared');
   }
 
   // Helper method to extract error messages consistently

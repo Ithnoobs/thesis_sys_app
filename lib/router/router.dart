@@ -7,8 +7,9 @@ import 'package:thesis_sys_app/screens/login_screen.dart';
 import 'package:thesis_sys_app/screens/register_screen.dart';
 import 'package:thesis_sys_app/screens/pending_approval_screen.dart';
 import 'package:thesis_sys_app/screens/unauthorized_screen.dart';
+import 'package:thesis_sys_app/screens/profile_screen.dart';
 import 'package:thesis_sys_app/controllers/auth_controller.dart';
-import 'package:thesis_sys_app/router/navigation_service.dart';
+import 'package:thesis_sys_app/router/navigation_service.dart' show navigatorKey;
 
 final routerProvider = Provider<GoRouter>((ref) {
   final auth = ref.watch(authControllerProvider);
@@ -43,6 +44,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/pending', builder: (_, __) => const PendingApprovalScreen()),
       GoRoute(path: '/unauthorized', builder: (_, __) => const UnauthorizedScreen()),
       GoRoute(path: '/home', builder: (_, __) => const HomeScreen()),
+      GoRoute(path: '/profile', builder: (_, __) => const ProfileScreen()),
     ],
   );
 });

@@ -22,6 +22,10 @@ String? authGuard(GoRouterState state, WidgetRef ref) {
     return '/unauthorized';
   }
 
+  if (state.fullPath == '/student' && role != 'student') {
+    return '/unauthorized';
+  }
+
   if (state.fullPath == '/pending' && allowAccess) {
     return '/home';
   }

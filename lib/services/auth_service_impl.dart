@@ -52,26 +52,23 @@ class AuthServiceImpl implements AuthService {
 
       if (response.statusCode == 200) {
         final token = responseData['token'];
-        final refreshToken = responseData['refresh_token'];
         final userJson = responseData['user'];
         final message = responseData['message'];
 
         if (kDebugMode) {
           print('[LOGIN] Success message: $message');
           print('[LOGIN] Token present: ${token != null}');
-          print('[LOGIN] Refresh token present: ${refreshToken != null}');
           print('[LOGIN] User data present: ${userJson != null}');
         }
 
-        if (token == null || refreshToken == null || userJson == null) {
+        if (token == null || userJson == null) {
           if (kDebugMode) print('[LOGIN] ERROR: Missing required fields in server response');
           throw Exception('Login failed: invalid server response');
         }
 
-        if (kDebugMode) print('[LOGIN] Writing tokens to secure storage...');
+        if (kDebugMode) print('[LOGIN] Writing token to secure storage...');
         await _storage.write(key: 'token', value: token);
-        await _storage.write(key: 'refresh_token', value: refreshToken);
-        if (kDebugMode) print('[LOGIN] Tokens stored successfully');
+        if (kDebugMode) print('[LOGIN] Token stored successfully');
 
         final user = User.fromJson(userJson);
         _currentUser = user;
@@ -144,45 +141,40 @@ class AuthServiceImpl implements AuthService {
       
       final responseData = response.data as Map<String, dynamic>;
       final token = responseData['token'];
-      final refreshToken = responseData['refresh_token'];
       final userJson = responseData['user'];
       final message = responseData['message'];
 
       if (kDebugMode) {
         print('[REGISTER] Success message: $message');
         print('[REGISTER] Token: ${token?.isNotEmpty == true ? "present" : "empty/null"}');
-        print('[REGISTER] Refresh token: ${refreshToken?.isNotEmpty == true ? "present" : "empty/null"}');
         print('[REGISTER] User data: ${userJson != null ? "present" : "null"}');
       }
 
       final user = User.fromJson(userJson);
       _currentUser = user;
 
-      // Handle pending activation case (token and refresh_token are empty strings)
-      if ((token == null || token == '') && (refreshToken == null || refreshToken == '')) {
+      // Handle pending activation case (token is empty string)
+      if (token == null || token == '') {
         if (kDebugMode) {
-          print('[REGISTER] User awaiting activation - no tokens provided');
+          print('[REGISTER] User awaiting activation - no token provided');
           print('[REGISTER] Registration pending for: ${user.name}');
           print('[REGISTER] User allowAccess: ${user.allowAccess}');
         }
         return user;
       }
 
-      // User is auto-approved, store tokens
-      if (token != null && token.isNotEmpty && refreshToken != null && refreshToken.isNotEmpty) {
-        if (kDebugMode) print('[REGISTER] Writing tokens to secure storage...');
+      // User is auto-approved, store token
+      if (token.isNotEmpty) {
+        if (kDebugMode) print('[REGISTER] Writing token to secure storage...');
         await _storage.write(key: 'token', value: token);
-        await _storage.write(key: 'refresh_token', value: refreshToken);
         
         // Store user_id for profile operations
         if (user.id != null) {
           await _storage.write(key: 'user_id', value: user.id.toString());
           if (kDebugMode) print('[REGISTER] User ID stored: ${user.id}');
         }
-        
-        if (kDebugMode) print('[REGISTER] Tokens stored successfully');
 
-        if (kDebugMode) {
+        if (kDebugMode) print('[REGISTER] Token stored successfully');        if (kDebugMode) {
           print('[REGISTER] User object created: ${user.name} (${user.email})');
           print('[REGISTER] User role: ${user.role}');
           print('[REGISTER] User allowAccess: ${user.allowAccess}');
@@ -217,11 +209,9 @@ class AuthServiceImpl implements AuthService {
     if (kDebugMode) print('[LOGOUT] Starting logout for email: $email');
     
     final token = await _storage.read(key: 'token');
-    final refreshToken = await _storage.read(key: 'refresh_token');
 
     if (kDebugMode) {
       print('[LOGOUT] Token available: ${token != null}');
-      print('[LOGOUT] Refresh token available: ${refreshToken != null}');
     }
 
     try {
@@ -231,7 +221,6 @@ class AuthServiceImpl implements AuthService {
         Endpoints.logout,
         data: {
           'email': email,
-          'refresh_token': refreshToken,
         },
         options: Options(
           headers: {
@@ -280,10 +269,7 @@ class AuthServiceImpl implements AuthService {
     } finally {
       if (kDebugMode) print('[LOGOUT] Clearing local storage and user data...');
       
-      await _storage.delete(key: 'token');
-      await _storage.delete(key: 'refresh_token');
-      await _storage.delete(key: 'user_id');
-      _currentUser = null;
+      await _clearTokens();
 
       if (kDebugMode) print('[LOGOUT] Local cleanup completed - tokens and user_id cleared, user set to null');
     }
@@ -306,47 +292,53 @@ class AuthServiceImpl implements AuthService {
 
       if (kDebugMode) {
         print('[SESSION] Token found, preview: ${token.substring(0, 20)}...');
-        print('[SESSION] Sending session check request...');
+        print('[SESSION] Using /user endpoint for session validation...');
       }
 
-      final response = await _dio.post(
-        Endpoints.checkSession,
+      // Use the /user endpoint instead of /check-session to avoid backend bugs
+      final response = await _dio.get(
+        Endpoints.user,
         options: Options(headers: {'Authorization': 'Bearer $token'}),
       );
 
       if (kDebugMode) {
-        print('[SESSION] Session check response status: ${response.statusCode}');
-        print('[SESSION] Session check response data: ${response.data}');
+        print('[SESSION] User endpoint response status: ${response.statusCode}');
+        print('[SESSION] User endpoint response data: ${response.data}');
       }
 
       if (response.statusCode == 200) {
-        final responseData = response.data as Map<String, dynamic>;
-        final shouldLogout = responseData['logout'] ?? false;
-        final message = responseData['message'] ?? 'Session valid';
-        
-        if (shouldLogout) {
-          if (kDebugMode) print('[SESSION] Server instructed logout - session invalid');
+        final user = User.fromJson(response.data);
+        _currentUser = user;
+
+        // Check force_logout flag to determine if we should logout
+        if (user.forceLogout == true) {
+          if (kDebugMode) print('[SESSION] User has force_logout=true - session invalid');
           return SessionCheckResult(
             isValid: false,
             shouldLogout: true,
-            message: message,
-            isForceLogout: message.toLowerCase().contains('force logout'),
+            message: 'Force logout - you have been logged out from another device',
+            isForceLogout: true,
           );
         }
 
-        if (responseData['user'] != null) {
-          _currentUser = User.fromJson(responseData['user']);
-          if (kDebugMode) print('[SESSION] User data updated from session check: ${_currentUser!.name}');
+        // Check if user has API tokens (hasApiTokens from backend)
+        if (user.hasApiTokens == false) {
+          if (kDebugMode) print('[SESSION] User has no API tokens - session invalid');
+          return SessionCheckResult(
+            isValid: false,
+            shouldLogout: true,
+            message: 'No valid API tokens found',
+          );
         }
 
-        if (kDebugMode) print('[SESSION] Session is valid');
+        if (kDebugMode) print('[SESSION] Session is valid via user endpoint');
         return SessionCheckResult(
           isValid: true,
           shouldLogout: false,
-          message: message,
+          message: 'Session valid',
         );
       } else {
-        if (kDebugMode) print('[SESSION] Session check failed with status: ${response.statusCode}');
+        if (kDebugMode) print('[SESSION] User endpoint failed with status: ${response.statusCode}');
         return SessionCheckResult(
           isValid: false,
           shouldLogout: false,
@@ -362,22 +354,20 @@ class AuthServiceImpl implements AuthService {
       }
 
       if (e.response?.statusCode == 401) {
-        final responseData = e.response?.data as Map<String, dynamic>?;
-        final message = responseData?['message'] ?? 'Session expired';
-        final shouldLogout = responseData?['logout'] ?? true;
-        
+        // Token is invalid or expired
         return SessionCheckResult(
           isValid: false,
-          shouldLogout: shouldLogout,
-          message: message,
-          isForceLogout: message.toLowerCase().contains('force logout'),
+          shouldLogout: true,
+          message: 'Session expired or invalid',
         );
       }
 
+      // For other errors (network, 404, etc), don't clear tokens - just mark session as temporarily invalid
+      if (kDebugMode) print('[SESSION] Network/other error - keeping tokens but marking session invalid');
       return SessionCheckResult(
         isValid: false,
         shouldLogout: false,
-        message: 'Network error during session check',
+        message: 'Network error during session check - keeping session',
       );
     } catch (e) {
       if (kDebugMode) print('[SESSION] Unexpected error during session check: $e');
@@ -438,76 +428,13 @@ class AuthServiceImpl implements AuthService {
     }
   }
 
-  Future<bool> refreshAccessToken() async {
-    if (kDebugMode) print('[REFRESH] Starting token refresh...');
-    
-    final refreshToken = await _storage.read(key: 'refresh_token');
-    if (refreshToken == null) {
-      if (kDebugMode) print('[REFRESH] No refresh token available');
-      return false;
-    }
-
-    if (kDebugMode) {
-      print('[REFRESH] Refresh token available, preview: ${refreshToken.substring(0, 20)}...');
-      print('[REFRESH] Sending refresh request to ${Endpoints.refreshToken}');
-    }
-
-    try {
-      final response = await _dio.post(
-        Endpoints.refreshToken,
-        data: {'refresh_token': refreshToken},
-      );
-
-      if (kDebugMode) {
-        print('[REFRESH] Refresh response status: ${response.statusCode}');
-        print('[REFRESH] Refresh response data: ${response.data}');
-      }
-
-      final responseData = response.data as Map<String, dynamic>;
-      final newToken = responseData['token'];
-      final newRefreshToken = responseData['refresh_token'];
-
-      if (newToken == null || newRefreshToken == null) {
-        if (kDebugMode) print('[REFRESH] ERROR: Missing tokens in refresh response');
-        await _clearTokens();
-        return false;
-      }
-
-      if (kDebugMode) {
-        print('[REFRESH] New tokens received');
-        print('[REFRESH] New token preview: ${newToken.substring(0, 20)}...');
-        print('[REFRESH] Writing new tokens to storage...');
-      }
-
-      await _storage.write(key: 'token', value: newToken);
-      await _storage.write(key: 'refresh_token', value: newRefreshToken);
-
-      if (kDebugMode) print('[REFRESH] Token refresh successful');
-      return true;
-    } on DioException catch (e) {
-      if (kDebugMode) {
-        print('[REFRESH] DioException during token refresh:');
-        print('[REFRESH] Error type: ${e.type}');
-        print('[REFRESH] Response status: ${e.response?.statusCode}');
-        print('[REFRESH] Response data: ${e.response?.data}');
-      }
-      await _clearTokens();
-      return false;
-    } catch (e) {
-      if (kDebugMode) print('[REFRESH] Unexpected error during token refresh: $e');
-      await _clearTokens();
-      return false;
-    }
-  }
-
   // Helper method to clear tokens
   Future<void> _clearTokens() async {
     if (kDebugMode) print('[CLEAR_TOKENS] Clearing stored tokens...');
     await _storage.delete(key: 'token');
-    await _storage.delete(key: 'refresh_token');
     await _storage.delete(key: 'user_id');
     _currentUser = null;
-    if (kDebugMode) print('[CLEAR_TOKENS] Tokens and user_id cleared');
+    if (kDebugMode) print('[CLEAR_TOKENS] Token and user_id cleared');
   }
 
   // Helper method to extract error messages consistently

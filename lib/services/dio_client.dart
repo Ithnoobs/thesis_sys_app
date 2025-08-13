@@ -2,7 +2,6 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:thesis_sys_app/services/auth_service_impl.dart';
 import '../core/interceptors/global_error_interceptor.dart';
 
 class DioClient {
@@ -11,7 +10,6 @@ class DioClient {
 
   final Dio dio = Dio();
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
-  bool _isRefreshing = false;
 
   DioClient._internal() {
     if (kDebugMode) print('[DIO_CLIENT] Initializing DioClient...');
@@ -48,42 +46,26 @@ class DioClient {
             print('[DIO_CLIENT] Path: ${e.requestOptions.path}');
           }
 
-          // Handle 302 redirects as authentication failures
-          if (e.response?.statusCode == 302 || e.response?.statusCode == 401) {
-            if (kDebugMode) print('[DIO_CLIENT] Authentication error detected');
+          // Only clear tokens for 401 errors on critical endpoints (not /user or /check-session)
+          if (e.response?.statusCode == 401) {
+            final path = e.requestOptions.path;
+            
+            // Don't clear tokens for session check endpoints - let AuthService handle it
+            if (path == '/user' || path == '/check-session') {
+              if (kDebugMode) print('[DIO_CLIENT] 401 on session endpoint - letting AuthService handle');
+            } else {
+              // Clear tokens only for other endpoints with 401
+              if (kDebugMode) print('[DIO_CLIENT] 401 on non-session endpoint - clearing tokens');
+              await _clearTokens();
+            }
+          }
 
-            if (!_isRefreshing) {
-              _isRefreshing = true;
-              
-              try {
-                if (kDebugMode) print('[DIO_CLIENT] Attempting token refresh...');
-                final refreshed = await AuthServiceImpl().refreshAccessToken();
-
-                if (refreshed) {
-                  if (kDebugMode) print('[DIO_CLIENT] Token refresh successful, retrying request...');
-                  final newToken = await _storage.read(key: 'token');
-                  final options = e.requestOptions;
-
-                  options.headers['Authorization'] = 'Bearer $newToken';
-
-                  try {
-                    final response = await dio.fetch(options);
-                    _isRefreshing = false;
-                    return handler.resolve(response);
-                  } catch (retryError) {
-                    if (kDebugMode) print('[DIO_CLIENT] Retry failed: $retryError');
-                    _isRefreshing = false;
-                    return handler.reject(retryError as DioException);
-                  }
-                } else {
-                  if (kDebugMode) print('[DIO_CLIENT] Token refresh failed - clearing tokens');
-                  await _clearTokens();
-                  _isRefreshing = false;
-                }
-              } catch (refreshError) {
-                if (kDebugMode) print('[DIO_CLIENT] Refresh error: $refreshError');
-                _isRefreshing = false;
-              }
+          // Handle 302 redirects as authentication failures (but not for session endpoints)
+          if (e.response?.statusCode == 302) {
+            final path = e.requestOptions.path;
+            if (path != '/user' && path != '/check-session') {
+              if (kDebugMode) print('[DIO_CLIENT] 302 redirect detected - clearing tokens');
+              await _clearTokens();
             }
           }
 
@@ -99,7 +81,6 @@ class DioClient {
   Future<void> _clearTokens() async {
     if (kDebugMode) print('[DIO_CLIENT] Clearing tokens...');
     await _storage.delete(key: 'token');
-    await _storage.delete(key: 'refresh_token');
     await _storage.delete(key: 'user_id');
   }
 }

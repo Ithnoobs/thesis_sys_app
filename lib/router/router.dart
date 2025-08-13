@@ -8,6 +8,9 @@ import 'package:thesis_sys_app/screens/register_screen.dart';
 import 'package:thesis_sys_app/screens/pending_approval_screen.dart';
 import 'package:thesis_sys_app/screens/unauthorized_screen.dart';
 import 'package:thesis_sys_app/screens/profile_screen.dart';
+import 'package:thesis_sys_app/screens/admin/admin_home_screen.dart';
+import 'package:thesis_sys_app/screens/supervisor/supervisor_home_screen.dart';
+import 'package:thesis_sys_app/screens/student/student_home_screen.dart';
 import 'package:thesis_sys_app/controllers/auth_controller.dart';
 import 'package:thesis_sys_app/router/navigation_service.dart' show navigatorKey;
 
@@ -36,6 +39,18 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       if (isLoggingIn) return '/home';
 
+      // Apply role-based protection manually here since we can't use authGuard
+      final role = user.role;
+      if (state.uri.path == '/admin' && role != 'admin') {
+        return '/unauthorized';
+      }
+      if (state.uri.path == '/supervisor' && role != 'supervisor') {
+        return '/unauthorized';
+      }
+      if (state.uri.path == '/student' && role != 'student') {
+        return '/unauthorized';
+      }
+
       return null;
     },
     routes: [
@@ -45,6 +60,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/unauthorized', builder: (_, __) => const UnauthorizedScreen()),
       GoRoute(path: '/home', builder: (_, __) => const HomeScreen()),
       GoRoute(path: '/profile', builder: (_, __) => const ProfileScreen()),
+      // Role-specific home screens
+      GoRoute(path: '/admin', builder: (_, __) => const AdminHomeScreen()),
+      GoRoute(path: '/supervisor', builder: (_, __) => const SupervisorHomeScreen()),
+      GoRoute(path: '/student', builder: (_, __) => const StudentHomeScreen()),
     ],
   );
 });

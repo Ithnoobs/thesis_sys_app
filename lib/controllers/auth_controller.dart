@@ -9,7 +9,8 @@ import '../models/user_model.dart';
 import '../services/auth_service.dart';
 import '../services/auth_service_impl.dart';
 import '../Widget/force_logout_banner.dart';
-import '../main.dart'; // Import for global keys
+import '../router/navigation_service.dart' show navigatorKey;
+import '../main.dart' show scaffoldMessengerKey;
 
 final authServiceProvider = Provider<AuthService>((ref) => AuthServiceImpl());
 
@@ -75,7 +76,15 @@ class AuthController extends StateNotifier<AsyncValue<User?>> {
   Future<void> _handleSessionExpired(SessionCheckResult result) async {
     if (kDebugMode) print('[AUTH_CONTROLLER] Handling session expiration...');
     stopPollingSession();
-    await _clearTokens();
+    
+    // Only clear tokens if backend explicitly says to logout
+    if (result.shouldLogout) {
+      if (kDebugMode) print('[AUTH_CONTROLLER] Backend says logout - clearing tokens');
+      await _clearTokens();
+    } else {
+      if (kDebugMode) print('[AUTH_CONTROLLER] Keeping tokens - session temporarily invalid');
+    }
+    
     state = const AsyncValue.data(null);
 
     // Show popup for force logout - but delay to ensure UI is ready
@@ -224,7 +233,6 @@ class AuthController extends StateNotifier<AsyncValue<User?>> {
     if (kDebugMode) print('[AUTH_CONTROLLER] Clearing stored tokens...');
     try {
       await const FlutterSecureStorage().delete(key: 'token');
-      await const FlutterSecureStorage().delete(key: 'refresh_token');
       await const FlutterSecureStorage().delete(key: 'user_id');
       if (kDebugMode) print('[AUTH_CONTROLLER] Tokens and user_id cleared successfully');
     } catch (e) {
@@ -240,7 +248,14 @@ class AuthController extends StateNotifier<AsyncValue<User?>> {
       final sessionResult = await _authService.checkSession();
       
       if (!sessionResult.isValid) {
-        if (kDebugMode) print('[AUTH_CONTROLLER] Session invalid - setting user to null');
+        if (kDebugMode) print('[AUTH_CONTROLLER] Session invalid - checking if should clear tokens');
+        
+        // Only clear tokens if backend explicitly says to logout
+        if (sessionResult.shouldLogout) {
+          if (kDebugMode) print('[AUTH_CONTROLLER] Backend says logout - clearing tokens');
+          await _clearTokens();
+        }
+        
         state = const AsyncValue.data(null);
         
         if (sessionResult.isForceLogout) {

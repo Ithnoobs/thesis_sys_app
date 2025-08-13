@@ -2,11 +2,11 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:thesis_sys_app/controllers/auth_controller.dart';
 import 'package:thesis_sys_app/controllers/profile_controller.dart';
 import 'package:thesis_sys_app/Widget/profile_avatar.dart';
-import 'package:thesis_sys_app/services/navigation_service.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
@@ -335,6 +335,35 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Profile'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            // Try to pop first (go back in navigation stack)
+            if (Navigator.of(context).canPop()) {
+              Navigator.of(context).pop();
+            } else {
+              // If no previous route, navigate to appropriate dashboard based on user role
+              final currentUser = ref.read(authControllerProvider).value;
+              if (currentUser != null) {
+                switch (currentUser.role?.toLowerCase()) {
+                  case 'admin':
+                    context.go('/admin');
+                    break;
+                  case 'supervisor':
+                    context.go('/supervisor');
+                    break;
+                  case 'student':
+                    context.go('/student');
+                    break;
+                  default:
+                    context.go('/home');
+                }
+              } else {
+                context.go('/home');
+              }
+            }
+          },
+        ),
         actions: [
           if (!_isChangingPassword)
             IconButton(

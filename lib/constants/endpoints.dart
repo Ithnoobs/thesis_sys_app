@@ -3,7 +3,6 @@ class Endpoints {
   static const register = '/register';
   static const logout = '/logout';
   static const checkSession = '/check-session';
-  static const refreshToken = '/refresh-token';
 
   // Profile-related endpoints
   static const user = '/user';

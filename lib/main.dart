@@ -4,8 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:thesis_sys_app/router/router.dart';
 import 'package:thesis_sys_app/services/dio_client.dart';
 
-// Global keys for accessing context
-final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+// Global key for accessing ScaffoldMessenger
 final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
 
 void main() {

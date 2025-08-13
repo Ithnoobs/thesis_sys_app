@@ -8,8 +8,7 @@ class User {
   final bool? allowAccess;
   final String? profilePicture;
   final DateTime? emailVerifiedAt;
-
-  // Optional: only used for login/register
+  final bool? hasApiTokens; 
   String? password;
 
   User({
@@ -23,6 +22,7 @@ class User {
     this.profilePicture,
     this.emailVerifiedAt,
     this.password,
+    this.hasApiTokens, 
   });
 
   factory User.fromJson(Map<String, dynamic> json) {
@@ -38,6 +38,7 @@ class User {
       emailVerifiedAt: json['email_verified_at'] != null
           ? DateTime.tryParse(json['email_verified_at'])
           : null,
+      hasApiTokens: json['has_api_tokens'], 
     );
   }
 
@@ -52,6 +53,7 @@ class User {
       'allow_access': allowAccess,
       'profile_picture': profilePicture,
       'email_verified_at': emailVerifiedAt?.toIso8601String(),
+      'has_api_tokens': hasApiTokens, 
     };
 
     if (includePassword && password != null) {
